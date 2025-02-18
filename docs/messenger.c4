@@ -1,0 +1,196 @@
+specification {
+  element actor
+  element system
+  element container
+  element component
+  element table
+  element column
+}
+
+model {
+  ui = actor 'UI' {
+    description 'Our beloved customer with curl'
+  }
+
+  saas = system 'Our SaaS' {
+    container gateway 'API gateway' {
+      description '
+        Сервис API перенаправляет запросы в другие сервисы и 
+        предоставляет REST API для UI
+      '
+      style {
+        icon tech:fast-api
+      }
+    }
+    container usersService 'Pasport Service' {
+      description '
+        Сервис пользователей, который отвечает за регистрацию и 
+        аутентификацию пользователей, а 
+        также хранит всю информацию по ним и их роли.
+      '
+      style {
+        icon tech:fast-api
+      }
+    }
+    container usersDB 'Passport Service DB' {
+      style {
+        icon tech:postgresql
+      }
+      table users {
+        column user_id 'user_id' 'uuid'
+        column email 'email' 'str'
+        column hashed_password 'hashed_password' 'str'
+        column name 'name' 'str'
+        column surname 'surname' 'str'
+      }
+      table logins {
+        column user_id 'user_id' 'uuid'
+        column login_time 'login_time' 'datetime'
+        column ip 'ip' 'str'
+        column user_agent 'user_agent' 'str'
+        column why 'why' 'text'
+      }
+      table subsciptions {
+        column subscriber_id 'subscriber_id' 'uuid'
+        column subscribed_to_id 'subscribed_to_id' 'uuid'
+      }
+      logins.user_id -> users.user_id
+      subsciptions.subscriber_id -> users.user_id
+      subsciptions.subscribed_to_id -> users.user_id
+    }
+
+    container postsService 'Posts and comments service' {
+      description '
+        Сервис постов и комментариев
+      '
+      style {
+        icon tech:fast-api
+      }
+    }
+    container postsDB 'Posts and comments DB' {
+      style {
+        icon tech:postgresql
+      }
+      table posts {
+        column post_id 'post_id' 'uuid'
+        column user_id 'user_id' 'uuid'
+        column title_ 'title' 'str'
+        column content 'content' 'text'
+        column created_at 'created_at' 'datetime'
+        column changed_at 'created_at' 'datetime'
+      }
+      table comments {
+        column post_id 'post_id' 'uuid'
+        column comment_id 'comment_id' 'uuid'
+        column user_id 'user_id' 'uuid'
+        column content 'content' 'text'
+        column created_at 'created_at' 'datetime'
+        column changed_at 'created_at' 'datetime'
+      }
+      table post_likes {
+        column post_id 'post_id' 'uuid'
+        column user_id 'user_id' 'uuid'
+        column created_at 'created_at' 'datetime'
+        column reaction_type 'reaction_type' 'str'
+        column why 'why' 'str'
+      }
+      comments.post_id -> posts.post_id
+      post_likes.post_id -> posts.post_id
+    }
+
+    container statisticService 'Statistic service' {
+      description '
+        Сервис статистики для подсчета лайков, просмотров, комментариев.
+      '
+      style {
+        icon tech:fast-api
+      }
+      table post_views {
+        column user_id 'user_id' 'uuid'
+        column post_id 'post_id' 'uuid'
+        column view_time 'view_time' 'datetime'
+        column user_agent 'user_agent' 'str'
+        column ip 'ip' 'str'
+      }
+      table post_likes {
+        column user_id 'user_id' 'uuid'
+        column post_id 'post_id' 'uuid'
+        column view_time 'view_time' 'datetime'
+        column user_agent 'user_agent' 'str'
+        column ip 'ip' 'str'
+      }
+      table comments {
+        column post_id 'post_id' 'uuid'
+        column comment_id 'comment_id' 'uuid'
+        column user_id 'user_id' 'uuid'
+        column content 'content' 'text'
+        column time 'time' 'datetime'
+      }
+    }
+    container statisticBroker 'Statistic message broker' {
+      style {
+        icon tech:kafka
+      }
+    }
+    container statisticBD 'Statistic BD' {
+      style {
+        icon https://github.com/ClickHouse/ClickHouse/raw/refs/heads/master/docs/ru/images/logo.svg
+      }
+    }
+
+    gateway -> usersService 'Do auth staff'
+    gateway -> statisticService 'Fetch statistic info'
+    gateway -> statisticBroker 'Push events'
+    gateway -> postsService 'CRUD for user generated content'
+    usersService -> usersDB 'SQL queries'
+    statisticService -> statisticBroker 'Fetch messages'
+    statisticService -> statisticBD 'SQL queries'
+    postsService -> postsDB 'SQL queries'
+    postsService -> statisticBroker 'Comments events'
+  }
+
+  // Customer uses the UI
+  ui -> gateway 'making curl requests'
+  ui -> saas 'enjoys our product'
+}
+
+views {
+
+  view index {
+    title 'Landscape view'
+
+    include *
+  }
+
+  view of saas {
+    include *
+
+    style ui {
+      color muted
+    }
+  }
+  /**
+   * @likec4-generated(v1)
+   * iKRoYXNo2SgzMjZhMTI0MTNiNzhlMDcwNzllMjYxMmFkYzVkZTBlY2UyMjVhODg0qmF1dG9MYXlvdXSBqWRpcmVjdGlvbqJUQqF4OaF5FKV3aWR0aM0KYKZoZWlnaHTNA0Slbm9kZXPeABCsc2Fhcy51c2Vyc0RCgqFilDkUzQnKzQNEoWPDs3NhYXMudXNlcnNEQi5sb2dpbnOCoWKUYUvNAxHNAuWhY8O5c2Fhcy51c2Vyc0RCLnN1YnNjaXB0aW9uc4KhYpTNBuhVzQLzzQEVoWPDsnNhYXMudXNlcnNEQi51c2Vyc4KhYpTNA5ZLzQM+zQI/oWPDu3NhYXMudXNlcnNEQi5sb2dpbnMudXNlcl9pZIKhYpTNAgbMgs0BQMy0oWPCvnNhYXMudXNlcnNEQi5sb2dpbnMubG9naW5fdGltZYKhYpTMicyFzQFAzLShY8K2c2Fhcy51c2Vyc0RCLmxvZ2lucy5pcIKhYpTNAgrNAW7N
+   * AUDMtKFjwr5zYWFzLnVzZXJzREIubG9naW5zLnVzZXJfYWdlbnSCoWKUzJHNAXDNAUDMtKFjwrdzYWFzLnVzZXJzREIubG9naW5zLndoeYKhYpTNAgLNAlTNAUDMtKFjwtknc2Fhcy51c2Vyc0RCLnN1YnNjaXB0aW9ucy5zdWJzY3JpYmVyX2lkgqFilM0HEMyMzQFAzLShY8LZKnNhYXMudXNlcnNEQi5zdWJzY2lwdGlvbnMuc3Vic2NyaWJlZF90b19pZIKhYpTNCHPMjs0BQMy0oWPCuHNhYXMudXNlcnNEQi51c2Vycy5lbWFpbIKhYpTNA77Mgs0BQMy0oWPC2SJzYWFzLnVzZXJzREIudXNlcnMuaGFzaGVkX3Bhc3N3b3JkgqFilM0FbMyCzQFAzLShY8K3c2Fhcy51c2Vyc0RCLnVzZXJzLm5hbWWCoWKUzQO+zQGuzQFAzLShY8K6c2Fhcy51c2Vyc0RCLnVzZXJzLnN1
+   * cm5hbWWCoWKUzQVszQGuzQFAzLShY8K6c2Fhcy51c2Vyc0RCLnVzZXJzLnVzZXJfaWSCoWKUzQSrzQETzQFAzLShY8KlZWRnZXODpnJjcDY1NIKiY3CSgqF4zQNOoXnNAU2CoXjNBU2hec0BiqFwl5LNAyTNATaSzQM/zQFGks0DXc0BVZLNA3vNAV6SzQT/zQHdks0Fic0BO5LNBxDNAa2mdWszYmsxgqJjcJGCoXjNCM6hec0BTaFwlJLNCO/NATaSzQi6zQFaks0IfM0BhJLNCEbNAamnMW90aW93aoKiY3CSgqF4zQpxoXnNAUyCoXjNCU6hec0Bs6Fwl5LNCpnNATaSzQp/zQFFks0KZM0BU5LNCknNAV6SzQmqzQGhks0I680Bz5LNCGTNAeo=
+   */
+  view of usersDB {
+    include *
+    include users.*
+    include logins.*
+    include subsciptions.*
+    style users, logins, subsciptions {
+      color green
+    }
+  }
+  view of postsDB {
+    include *
+    include posts.*
+    include comments.*
+    include post_likes.*
+    style posts, comments, post_likes {
+      color green
+    }
+  }
+}
