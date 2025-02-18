@@ -43,18 +43,19 @@ model {
         column name 'name' 'str'
         column surname 'surname' 'str'
       }
-      table logins {
+      table sessions {
+        column session_id 'session_id' 'uuid'
         column user_id 'user_id' 'uuid'
-        column login_time 'login_time' 'datetime'
-        column ip 'ip' 'str'
+        column last_login_time 'last_login_time' 'datetime'
         column user_agent 'user_agent' 'str'
         column why 'why' 'text'
+        column terminated 'terminated' 'bool'
       }
       table subsciptions {
         column subscriber_id 'subscriber_id' 'uuid'
         column subscribed_to_id 'subscribed_to_id' 'uuid'
       }
-      logins.user_id -> users.user_id
+      sessions.user_id -> users.user_id
       subsciptions.subscriber_id -> users.user_id
       subsciptions.subscribed_to_id -> users.user_id
     }
@@ -77,7 +78,7 @@ model {
         column title_ 'title' 'str'
         column content 'content' 'text'
         column created_at 'created_at' 'datetime'
-        column changed_at 'created_at' 'datetime'
+        column changed_at 'changed_at' 'datetime'
       }
       table comments {
         column post_id 'post_id' 'uuid'
@@ -85,7 +86,7 @@ model {
         column user_id 'user_id' 'uuid'
         column content 'content' 'text'
         column created_at 'created_at' 'datetime'
-        column changed_at 'created_at' 'datetime'
+        column changed_at 'changed_at' 'datetime'
       }
       table post_likes {
         column post_id 'post_id' 'uuid'
@@ -104,6 +105,16 @@ model {
       '
       style {
         icon tech:fast-api
+      }
+    }
+    container statisticBroker 'Statistic message broker' {
+      style {
+        icon tech:kafka
+      }
+    }
+    container statisticBD 'Statistic BD' {
+      style {
+        icon https://github.com/ClickHouse/ClickHouse/raw/refs/heads/master/docs/ru/images/logo.svg
       }
       table post_views {
         column user_id 'user_id' 'uuid'
@@ -125,16 +136,8 @@ model {
         column user_id 'user_id' 'uuid'
         column content 'content' 'text'
         column time 'time' 'datetime'
-      }
-    }
-    container statisticBroker 'Statistic message broker' {
-      style {
-        icon tech:kafka
-      }
-    }
-    container statisticBD 'Statistic BD' {
-      style {
-        icon https://github.com/ClickHouse/ClickHouse/raw/refs/heads/master/docs/ru/images/logo.svg
+        column user_agent 'user_agent' 'str'
+        column ip 'ip' 'str'
       }
     }
 
@@ -178,19 +181,35 @@ views {
   view of usersDB {
     include *
     include users.*
-    include logins.*
+    include sessions.*
     include subsciptions.*
-    style users, logins, subsciptions {
-      color green
+    style users, sessions, subsciptions {
+      color gray
     }
   }
+  /**
+   * @likec4-generated(v1)
+   * iKRoYXNo2SgyNTg4NTlmNDcyYzMzZDQ2NjBlNGM5ZDM1MzQ2NTQ1MTNlZjViZGU4qmF1dG9MYXlvdXSBqWRpcmVjdGlvbqJUQqF4/KF5FKV3aWR0aM0NiKZoZWlnaHTNA1Wlbm9kZXPeABWsc2Fhcy5wb3N0c0RCgqFilPwUzQ2IzQNVoWPDtXNhYXMucG9zdHNEQi5jb21tZW50c4KhYpQkdc0E4M0CAaFjw7dzYWFzLnBvc3RzREIucG9zdF9saWtlc4KhYpTNClRLzQMIzQL2oWPDsnNhYXMucG9zdHNEQi5wb3N0c4KhYpTNBURLzQTszQI/oWPDvXNhYXMucG9zdHNEQi5jb21tZW50cy5wb3N0X2lkgqFilM0DnMyyzQFAzLShY8LZIHNhYXMucG9zdHNEQi5jb21tZW50cy5jb21tZW50X2lkgqFilEzMrM0BQMy0oWPCvXNhYXMucG9zdHNEQi5jb21tZW50cy51c2VyX2lk
+   * gqFilM0B4cy9zQFAzLShY8K9c2Fhcy5wb3N0c0RCLmNvbW1lbnRzLmNvbnRlbnSCoWKUzQObzQGDzQFAzLShY8LZIHNhYXMucG9zdHNEQi5jb21tZW50cy5jcmVhdGVkX2F0gqFilFTNAZbNAUDMtKFjwtkgc2Fhcy5wb3N0c0RCLmNvbW1lbnRzLmNoYW5nZWRfYXSCoWKUzQH6zQGazQFAzLShY8K/c2Fhcy5wb3N0c0RCLnBvc3RfbGlrZXMucG9zdF9pZIKhYpTNCoDMgs0BQMy0oWPCv3NhYXMucG9zdHNEQi5wb3N0X2xpa2VzLnVzZXJfaWSCoWKUzQqAzQFzzQFAzLShY8LZInNhYXMucG9zdHNEQi5wb3N0X2xpa2VzLmNyZWF0ZWRfYXSCoWKUzQv0zKnNAUDMtKFjwtklc2Fhcy5wb3N0c0RCLnBvc3RfbGlrZXMucmVhY3Rpb25fdHlwZYKhYpTNCnzNAmXNAUDMtKFj
+   * wrtzYWFzLnBvc3RzREIucG9zdF9saWtlcy53aHmCoWKUzQv0zQGGzQFAzLShY8K6c2Fhcy5wb3N0c0RCLnBvc3RzLnVzZXJfaWSCoWKUzQVszILNAUDMtKFjwrlzYWFzLnBvc3RzREIucG9zdHMudGl0bGVfgqFilM0HGsyCzQFAzLShY8K6c2Fhcy5wb3N0c0RCLnBvc3RzLmNvbnRlbnSCoWKUzQjIzILNAUDMtKFjwr1zYWFzLnBvc3RzREIucG9zdHMuY3JlYXRlZF9hdIKhYpTNBWzNAa7NAUDMtKFjwr1zYWFzLnBvc3RzREIucG9zdHMuY2hhbmdlZF9hdIKhYpTNBxrNAa7NAUDMtKFjwrpzYWFzLnBvc3RzREIucG9zdHMucG9zdF9pZIKhYpTNBw7NAQXNAUDMtKFjwqVlZGdlc4KmNDJrODRogqJjcJKCoXjNBQ+hec0BL4KheM0G56F5zQFroXCXks0E9M0BJZLNBQbN
+   * ASySzQUXzQEyks0FKc0BNpLNBrXNAaGSzQc4zQExks0Ivs0BraZ5bjJmNm2ComNwkYKheM0KfKF5zQFNoXCUks0Knc0BNpLNCmjNAVqSzQoqzQGEks0J9M0BqQ==
+   */
   view of postsDB {
     include *
     include posts.*
     include comments.*
     include post_likes.*
     style posts, comments, post_likes {
-      color green
+      color gray
+    }
+  }
+  view of statisticBD {
+    include *
+    include post_views.*
+    include comments.*
+    include post_likes.*
+    style post_views, comments, post_likes {
+      color gray
     }
   }
 }
