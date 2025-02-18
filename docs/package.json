@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "dev": "likec4 dev",
+    "start": "likec4 start",
+    "build": "likec4 build messenger.c4"
+  },
+  "dependencies": {
+    "likec4": "^1.22.1"
+  }
+}
