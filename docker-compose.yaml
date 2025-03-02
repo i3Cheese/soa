@@ -1,0 +1,4 @@
+networks:
+  whymsg:
+    name: whymsg-network
+    driver: bridge
