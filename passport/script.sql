@@ -1,7 +1,13 @@
+DROP TABLE IF EXISTS users;
 CREATE TABLE users (
     user_id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+    login VARCHAR(255) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     hashed_password VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    surname VARCHAR(255) NOT NULL
+    surname VARCHAR(255) NOT NULL,
+    date_of_birth DATE NOT NULL,
+    phone_number VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
