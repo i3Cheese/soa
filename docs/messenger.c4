@@ -143,7 +143,6 @@ model {
 
     gateway -> usersService 'Do auth staff'
     gateway -> statisticService 'Fetch statistic info'
-    gateway -> statisticBroker 'Push events'
     gateway -> postsService 'CRUD for user generated content'
     usersService -> usersDB 'SQL queries'
     statisticService -> statisticBroker 'Fetch messages'
