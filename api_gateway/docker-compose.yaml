@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8082:8080"
+      - "8080:8080"
     environment:
       - PORT=8080
       - PASSPORT_URL=http://whymsg-passport:8080

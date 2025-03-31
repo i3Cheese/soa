@@ -1,0 +1,26 @@
+services:
+  posts:
+    container_name: whymsg-posts
+    build:
+      context: ..
+      dockerfile: posts/Dockerfile
+    ports:
+      - "8084:8080"
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgres://posts:posts@whymsg-posts-db:5432/posts
+      - JWT_SECRET=secret
+  posts-db:
+    container_name: whymsg-posts-db
+    image: postgres:17
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=posts
+      - POSTGRES_PASSWORD=posts
+      - POSTGRES_DB=posts
+
+networks:
+  default:
+    name: whymsg-network
+    external: true
