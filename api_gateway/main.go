@@ -34,6 +34,8 @@ func main() {
 		proxyRequest(c, passportServiceURL+"/me", true)
 	})
 
+	setupPostsRoutes(router)
+
 	router.Run(fmt.Sprintf("0.0.0.0:%s", os.Getenv("PORT")))
 }
 

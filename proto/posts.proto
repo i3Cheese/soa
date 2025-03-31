@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+option go_package = "./posts";
+
+package proto.posts;
+
+message Post {
+    int32 id = 1;
+    string title = 2;
+    string description = 3;
+    int32 creator_id = 4;
+    string created_at = 5;
+    string updated_at = 6;
+    bool is_private = 7;
+}
+
+message CreatePostRequest {
+    string title = 1;
+    string description = 2;
+    int32 creator_id = 3;
+    bool is_private = 4;
+}
+
+message CreatePostResponse {
+    Post post = 1;
+}
+
+// Message for deleting a post
+message DeletePostRequest {
+    int32 id = 1;
+}
+
+message DeletePostResponse {
+    bool success = 1;
+}
+
+// Message for updating a post
+message UpdatePostRequest {
+    int32 id = 1;
+    string title = 2;
+    string description = 3;
+    bool is_private = 4;
+}
+
+message UpdatePostResponse {
+    Post post = 1;
+}
+
+message GetPostByIdRequest {
+    int32 id = 1;
+}
+
+message GetPostByIdResponse {
+    Post post = 1;
+}
+
+message GetPostsRequest {
+    int32 page = 1;
+    int32 page_size = 2;
+}
+
+message GetPostsResponse {
+    repeated Post posts = 1;
+    int32 total_count = 2;
+}
+
+service PostService {
+    rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
+    rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
+    rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
+    rpc GetPostById(GetPostByIdRequest) returns (GetPostByIdResponse);
+    rpc GetPosts(GetPostsRequest) returns (GetPostsResponse);
+}
