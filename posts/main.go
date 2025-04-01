@@ -32,14 +32,19 @@ func main() {
 
 	// Enable reflection for debugging
 	reflection.Register(grpcServer)
-
-	listener, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to listen on port 50051: %v\n", err)
+	port := os.Getenv("POSTS_PORT")
+	if port == "" {
+		fmt.Println("POSTS_PORT is required")
 		os.Exit(1)
 	}
 
-	fmt.Println("gRPC server is running on port 50051")
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to listen on port %s: %v\n", port, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("gRPC server is running on port %s\n", port)
 	if err := grpcServer.Serve(listener); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to serve gRPC server: %v\n", err)
 		os.Exit(1)

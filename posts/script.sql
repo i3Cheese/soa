@@ -3,10 +3,10 @@ DROP TABLE IF EXISTS posts_tags;
 DROP TABLE IF EXISTS tags;
 
 CREATE TABLE posts (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
+    post_id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
-    creator_id INT NOT NULL,
+    creator_id VARCHAR(36) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     is_private BOOLEAN DEFAULT FALSE
@@ -33,7 +33,7 @@ CREATE TABLE tags (
 );
 
 CREATE TABLE posts_tags (
-    post_id INT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    post_id VARCHAR(36) NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
     tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY KEY (post_id, tag_id)
 );

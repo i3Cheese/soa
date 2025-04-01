@@ -74,7 +74,7 @@ func CheckToken(token string) (user_id string, err error) {
 		return
 	}
 	user_id = response["user_id"].(string)
-	fmt.Printf("User ID: %s\n", user_id)
+	fmt.Printf("check User ID: %s\n", user_id)
 
 	return user_id, nil
 }
