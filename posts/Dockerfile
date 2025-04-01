@@ -5,7 +5,6 @@ ARG project=posts
 WORKDIR /workspace
 
 COPY go.work go.work.sum ./
-
 COPY ./api_gateway/go.mod ./api_gateway/go.sum ./api_gateway/
 COPY ./passport/go.mod ./passport/go.sum ./passport/
 COPY ./posts/go.mod ./posts/go.sum ./posts/

@@ -1,4 +1,68 @@
-networks:
-  whymsg:
-    name: whymsg-network
-    driver: bridge
+services:
+  api_gateway:
+    build:
+      context: .
+      dockerfile: api_gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - PASSPORT_URL=http://passport:8080
+      - POSTS_URL=posts:8080
+    depends_on:
+      - passport
+      - posts
+  passport:
+    build:
+      context: .
+      dockerfile: passport/Dockerfile
+    ports:
+      - "8082:8080"
+    environment:
+      - PORT=8080
+      - DATABASE_URL=postgres://passport:passport@passport-db:5432/passport
+      - JWT_SECRET=secret
+    depends_on:
+      - passport-db
+  passport-db:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./passport/db-init-scripts:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_USER=passport
+      - POSTGRES_PASSWORD=passport
+      - POSTGRES_DB=passport
+    # healthcheck:
+    #   test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
+    #   interval: 10s
+    #   timeout: 3s
+    #   retries: 3
+  posts:
+    build:
+      context: .
+      dockerfile: posts/Dockerfile
+    ports:
+      - "8084:8080"
+    environment:
+      - POSTS_PORT=8080
+      - DATABASE_URL=postgres://posts:posts@posts-db:5432/posts
+      - JWT_SECRET=secret
+    depends_on:
+      - posts-db
+  posts-db:
+    image: postgres:17
+    volumes:
+      - ./posts/db-init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=posts
+      - POSTGRES_PASSWORD=posts
+      - POSTGRES_DB=posts
+    # healthcheck:
+    #   test: ["CMD-SHELL", "sh -c 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}'"]
+    #   interval: 10s
+    #   timeout: 3s
+    #   retries: 3

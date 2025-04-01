@@ -7,20 +7,18 @@ services:
     ports:
       - "8084:8080"
     environment:
-      - PORT=8080
+      - POSTS_PORT=8080
       - DATABASE_URL=postgres://posts:posts@whymsg-posts-db:5432/posts
       - JWT_SECRET=secret
+    network_mode: "host"
   posts-db:
     container_name: whymsg-posts-db
     image: postgres:17
+    volumes:
+      - ./db-init-scripts:/docker-entrypoint-initdb.d
     ports:
       - "5434:5432"
     environment:
       - POSTGRES_USER=posts
       - POSTGRES_PASSWORD=posts
       - POSTGRES_DB=posts
-
-networks:
-  default:
-    name: whymsg-network
-    external: true

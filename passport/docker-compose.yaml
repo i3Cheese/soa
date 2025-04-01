@@ -2,25 +2,23 @@ services:
   passport:
     container_name: whymsg-passport
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: passport/Dockerfile
     ports:
       - "8082:8080"
     environment:
       - PORT=8080
       - DATABASE_URL=postgres://passport:passport@whymsg-passport-db:5432/passport
       - JWT_SECRET=secret
+    network_mode: "host"
   passport-db:
     container_name: whymsg-passport-db
     image: postgres:17
     ports:
       - "5432:5432"
+    volumes:
+      - ./db-init-scripts:/docker-entrypoint-initdb.d
     environment:
       - POSTGRES_USER=passport
       - POSTGRES_PASSWORD=passport
       - POSTGRES_DB=passport
-
-networks:
-  default:
-    name: whymsg-network
-    external: true
