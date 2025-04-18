@@ -201,10 +201,24 @@ func (app *App) UpdateMyInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "User updated successfully"})
 }
 
+func connectWithRetries(ctx context.Context, dsn string, maxRetries int) (*pgx.Conn, error) {
+	var conn *pgx.Conn
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		conn, err = pgx.Connect(ctx, dsn)
+		if err == nil {
+			return conn, nil
+		}
+		fmt.Fprintf(os.Stderr, "Attempt %d: Unable to connect to database: %v\n", i+1, err)
+		time.Sleep(2 * time.Second) // Add a delay between retries
+	}
+	return nil, err
+}
+
 func main() {
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
+	conn, err := connectWithRetries(context.Background(), os.Getenv("DATABASE_URL"), 10)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Unable to connect to database after retries: %v\n", err)
 		os.Exit(1)
 	}
 	defer conn.Close(context.Background())

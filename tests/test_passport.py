@@ -1,30 +1,13 @@
-import os
 import requests
 import psycopg
 import datetime
-
-API_GATEWAY_URL = os.getenv("API_GATEWAY_URL")
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-
-class WithDelete:
-    def __init__(self, query):
-        self.query = query
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        with psycopg.connect(DATABASE_URL) as conn:
-            with conn.cursor() as cur:
-                cur.execute(self.query)
-                conn.commit()
+from utils import WithDeletePassport, API_GATEWAY_URL, PASSPORT_DATABASE_URL
 
 
 def test_e2e_passport():
     login = "testuser"
     email = "mail@example.com"
-    with WithDelete(f"DELETE FROM users WHERE login = '{login}' OR email = '{email}'"):
+    with WithDeletePassport(f"DELETE FROM users WHERE login = '{login}' OR email = '{email}'"):
         response = requests.post(
             f"{API_GATEWAY_URL}/passport/register",
             json={
@@ -39,7 +22,7 @@ def test_e2e_passport():
         )
         assert response.status_code == 200, response.text
         assert response.json() == {"status": "User registered successfully"}
-        with psycopg.connect(DATABASE_URL) as conn:
+        with psycopg.connect(PASSPORT_DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT user_id, login, email, name, surname, date_of_birth, phone_number, created_at, updated_at FROM users WHERE login = %s",
@@ -59,7 +42,8 @@ def test_e2e_passport():
                 )
                 created_at, updated_at = current_user[7], current_user[8]
                 assert created_at == updated_at
-                now = datetime.datetime.now()
+                now = datetime.datetime.now(datetime.timezone.utc)
+                created_at = created_at.replace(tzinfo=datetime.timezone.utc)
                 delta = datetime.timedelta(seconds=10)
                 assert now - delta < created_at < now + delta
         response = requests.post(
@@ -98,7 +82,7 @@ def test_e2e_passport():
         )
         assert response.status_code == 200, response.text
         assert response.json() == {"status": "User updated successfully"}
-        with psycopg.connect(DATABASE_URL) as conn:
+        with psycopg.connect(PASSPORT_DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT user_id, login, email, name, surname, date_of_birth, phone_number, created_at, updated_at FROM users WHERE login = %s",
@@ -118,6 +102,7 @@ def test_e2e_passport():
                 )
                 created_at, updated_at = current_user[7], current_user[8]
                 assert created_at < updated_at
-                now = datetime.datetime.now()
+                now = datetime.datetime.now(datetime.timezone.utc)
+                updated_at = updated_at.replace(tzinfo=datetime.timezone.utc)
                 delta = datetime.timedelta(seconds=10)
                 assert now - delta < updated_at < now + delta
