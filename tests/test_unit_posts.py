@@ -5,7 +5,9 @@ from contextlib import contextmanager
 
 @contextmanager
 def register_and_login(login, email, password):
-    with WithDeletePassport(f"DELETE FROM users WHERE login = '{login}' OR email = '{email}'"):
+    with WithDeletePassport(
+        f"DELETE FROM users WHERE login = '{login}' OR email = '{email}'"
+    ):
         # Register user
         requests.post(
             f"{API_GATEWAY_URL}/passport/register",
@@ -168,7 +170,9 @@ def test_get_posts():
                 },
             )
             print("Response:", response.text)
-            assert response.status_code == 201, f"Failed to create Post 1: {response.text}"
+            assert (
+                response.status_code == 201
+            ), f"Failed to create Post 1: {response.text}"
             response = requests.post(
                 f"{API_GATEWAY_URL}/posts",
                 headers={"Authorization": token},
@@ -179,8 +183,9 @@ def test_get_posts():
                 },
             )
             print("Response:", response.text)
-            assert response.status_code == 201, f"Failed to create Post 2: {response.text}"
-
+            assert (
+                response.status_code == 201
+            ), f"Failed to create Post 2: {response.text}"
 
             # Get posts
             response = requests.get(
@@ -189,8 +194,117 @@ def test_get_posts():
                 params={"limit": 10},
             )
             print("Response:", response.text)
-            assert response.status_code == 200, f"Unexpected status code: {response.status_code}, response: {response.text}"
+            assert (
+                response.status_code == 200
+            ), f"Unexpected status code: {response.status_code}, response: {response.text}"
             data = response.json()
             assert "posts" in data, f"Response JSON does not contain 'posts': {data}"
             assert isinstance(data["posts"], list), f"'posts' is not a list: {data}"
             assert len(data["posts"]) >= 2, f"Expected at least 2 posts, got: {data}"
+
+
+def test_view_post():
+    login = "testuser"
+    email = "mail@example.com"
+    password = "password"
+    with register_and_login(login, email, password) as token:
+        with WithDeletePosts(f"DELETE FROM posts WHERE title = 'Viewable Post'"):
+            # Create post
+            response = requests.post(
+                f"{API_GATEWAY_URL}/posts",
+                headers={"Authorization": token},
+                json={
+                    "title": "Viewable Post",
+                    "description": "This post will be viewed.",
+                    "is_private": False,
+                },
+            )
+            post_id = response.json()["post_id"]
+
+            # View post
+            response = requests.get(
+                f"{API_GATEWAY_URL}/posts/{post_id}/view",
+                headers={"Authorization": token},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["post_id"] == post_id
+            assert data["title"] == "Viewable Post"
+
+
+def test_like_unlike_post():
+    login = "testuser"
+    email = "mail@example.com"
+    password = "password"
+    with register_and_login(login, email, password) as token:
+        with WithDeletePosts(f"DELETE FROM posts WHERE title = 'Likeable Post'"):
+            # Create post
+            response = requests.post(
+                f"{API_GATEWAY_URL}/posts",
+                headers={"Authorization": token},
+                json={
+                    "title": "Likeable Post",
+                    "description": "This post will be liked.",
+                    "is_private": False,
+                },
+            )
+            post_id = response.json()["post_id"]
+
+            # Like post
+            response = requests.post(
+                f"{API_GATEWAY_URL}/posts/{post_id}/like",
+                headers={"Authorization": token},
+                json={"like": True},
+            )
+            assert response.status_code == 200
+            assert response.json()["success"]
+
+            # Unlike post
+            response = requests.post(
+                f"{API_GATEWAY_URL}/posts/{post_id}/like",
+                headers={"Authorization": token},
+                json={"like": False},
+            )
+            assert response.status_code == 200
+            assert response.json()["success"]
+
+
+def test_comment_post_and_get_comments():
+    login = "testuser"
+    email = "mail@example.com"
+    password = "password"
+    with register_and_login(login, email, password) as token:
+        with WithDeletePosts(f"DELETE FROM posts WHERE title = 'Commented Post'"):
+            # Create post
+            response = requests.post(
+                f"{API_GATEWAY_URL}/posts",
+                headers={"Authorization": token},
+                json={
+                    "title": "Commented Post",
+                    "description": "This post will be commented.",
+                    "is_private": False,
+                },
+            )
+            post_id = response.json()["post_id"]
+
+            # Comment on post
+            response = requests.post(
+                f"{API_GATEWAY_URL}/posts/{post_id}/comment",
+                headers={"Authorization": token},
+                json={"content": "Nice post!"},
+            )
+            assert response.status_code == 200
+            assert response.json()["success"]
+
+            # Get comments
+            response = requests.get(
+                f"{API_GATEWAY_URL}/posts/{post_id}/comments",
+                headers={"Authorization": token},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "comments" in data
+            assert isinstance(data["comments"], list)
+            assert any(
+                comment["content"] == "Nice post!" for comment in data["comments"]
+            )

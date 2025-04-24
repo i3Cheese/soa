@@ -39,6 +39,19 @@ func setupPostsRoutes(router *gin.Engine) {
 	router.GET("/posts", func(c *gin.Context) {
 		handleGetPosts(c, postsServiceURL)
 	})
+	// New routes
+	router.GET("/posts/:id/view", func(c *gin.Context) {
+		handleViewPost(c, postsServiceURL)
+	})
+	router.POST("/posts/:id/like", func(c *gin.Context) {
+		handleLikePost(c, postsServiceURL)
+	})
+	router.POST("/posts/:id/comment", func(c *gin.Context) {
+		handleCommentPost(c, postsServiceURL)
+	})
+	router.GET("/posts/:id/comments", func(c *gin.Context) {
+		handleGetComments(c, postsServiceURL)
+	})
 }
 
 type CreatePostRequest struct {
@@ -181,6 +194,130 @@ func handleGetPostById(c *gin.Context, postsServiceURL string) {
 		return
 	}
 	c.JSON(http.StatusOK, resp.Post)
+}
+
+// New handler: ViewPost
+func handleViewPost(c *gin.Context, postsServiceURL string) {
+	client, ctx, closeConn, err := prepareRequest(c, postsServiceURL)
+	if err != nil {
+		return
+	}
+	defer closeConn()
+
+	postId := c.Param("id")
+	req := &posts.ViewPostRequest{PostId: postId}
+	resp, err := client.ViewPost(ctx, req)
+	if err != nil {
+		fmt.Printf("Failed to view post: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to view post"})
+		return
+	}
+	c.JSON(http.StatusOK, resp.Post)
+}
+
+// New handler: LikePost
+type LikePostRequestBody struct {
+	Like bool `json:"like"`
+}
+
+func handleLikePost(c *gin.Context, postsServiceURL string) {
+	client, ctx, closeConn, err := prepareRequest(c, postsServiceURL)
+	if err != nil {
+		return
+	}
+	defer closeConn()
+
+	postId := c.Param("id")
+	var reqBody LikePostRequestBody
+	if err := c.ShouldBindJSON(&reqBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+	user_id, err := CheckToken(c.Request.Header.Get("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	req := &posts.LikePostRequest{
+		PostId: postId,
+		UserId: user_id,
+		Like:   reqBody.Like,
+	}
+	resp, err := client.LikePost(ctx, req)
+	if err != nil {
+		fmt.Printf("Failed to like/unlike post: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to like/unlike post"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": resp.Success})
+}
+
+// New handler: CommentPost
+type CommentPostRequestBody struct {
+	Content string `json:"content"`
+}
+
+func handleCommentPost(c *gin.Context, postsServiceURL string) {
+	client, ctx, closeConn, err := prepareRequest(c, postsServiceURL)
+	if err != nil {
+		return
+	}
+	defer closeConn()
+
+	postId := c.Param("id")
+	var reqBody CommentPostRequestBody
+	if err := c.ShouldBindJSON(&reqBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+	user_id, err := CheckToken(c.Request.Header.Get("Authorization"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	req := &posts.CommentPostRequest{
+		PostId:  postId,
+		UserId:  user_id,
+		Content: reqBody.Content,
+	}
+	resp, err := client.CommentPost(ctx, req)
+	if err != nil {
+		fmt.Printf("Failed to comment on post: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to comment on post"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": resp.Success})
+}
+
+// New handler: GetComments
+func handleGetComments(c *gin.Context, postsServiceURL string) {
+	client, ctx, closeConn, err := prepareRequest(c, postsServiceURL)
+	if err != nil {
+		return
+	}
+	defer closeConn()
+
+	postId := c.Param("id")
+	startFrom := c.Query("start_from")
+	req := &posts.GetCommentsRequest{PostId: postId}
+	if startFrom != "" {
+		parsedTime, err := time.Parse(time.RFC3339, startFrom)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_from format"})
+			return
+		}
+		req.StartFrom = timestamppb.New(parsedTime)
+	}
+	resp, err := client.GetComments(ctx, req)
+	if err != nil {
+		fmt.Printf("Failed to fetch comments: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch comments"})
+		return
+	}
+	if resp.Comments == nil {
+		resp.Comments = []*posts.Comment{}
+	}
+	c.JSON(http.StatusOK, gin.H{"comments": resp.Comments, "total_count": resp.TotalCount})
 }
 
 func handleGetPosts(c *gin.Context, postsServiceURL string) {

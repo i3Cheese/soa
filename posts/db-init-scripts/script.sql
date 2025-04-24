@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS posts, posts_tags, tags CASCADE;
+DROP TABLE IF EXISTS posts, likes, comments CASCADE;
 
 CREATE TABLE posts (
     post_id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,13 +25,39 @@ BEFORE UPDATE ON posts
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TABLE tags (
-    id SERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE
+-- CREATE TABLE tags (
+--     id SERIAL PRIMARY KEY,
+--     name TEXT NOT NULL UNIQUE
+-- );
+
+-- CREATE TABLE posts_tags (
+--     post_id VARCHAR(36) NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
+--     tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+--     PRIMARY KEY (post_id, tag_id)
+-- );
+
+CREATE TABLE post_views (
+    view_id SERIAL PRIMARY KEY,
+    post_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE CASCADE
 );
 
-CREATE TABLE posts_tags (
-    post_id VARCHAR(36) NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
-    tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (post_id, tag_id)
+CREATE TABLE post_likes (
+    like_id SERIAL PRIMARY KEY,
+    post_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE CASCADE,
+    UNIQUE (post_id, user_id)
+);
+
+CREATE TABLE post_comments (
+    comment_id SERIAL PRIMARY KEY,
+    post_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (post_id) REFERENCES posts(post_id) ON DELETE CASCADE
 );

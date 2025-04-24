@@ -63,10 +63,60 @@ message GetPostsResponse {
     int32 total_count = 2;
 }
 
+message ViewPostRequest {
+    string post_id = 1;
+}
+
+message ViewPostResponse {
+    Post post = 1;
+}
+
+message LikePostRequest {
+    string post_id = 1;
+    string user_id = 2;
+    bool like = 3; // If true, the user likes the post, if false, the user unlikes the post
+}
+
+message LikePostResponse {
+    bool success = 1;
+}
+
+message CommentPostRequest {
+    string post_id = 1;
+    string user_id = 2;
+    string content = 3;
+}
+
+message CommentPostResponse {
+    bool success = 1;
+}
+
+message GetCommentsRequest {
+    string post_id = 1;
+    google.protobuf.Timestamp start_from = 2;
+}
+
+message GetCommentsResponse {
+    repeated Comment comments = 1;
+    int32 total_count = 2;
+}
+
+message Comment {
+    string comment_id = 1;
+    string post_id = 2;
+    string user_id = 3;
+    string content = 4;
+    google.protobuf.Timestamp created_at = 5;
+}
+
 service PostService {
     rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
     rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
     rpc UpdatePost(UpdatePostRequest) returns (UpdatePostResponse);
     rpc GetPostById(GetPostByIdRequest) returns (GetPostByIdResponse);
     rpc GetPosts(GetPostsRequest) returns (GetPostsResponse);
+    rpc ViewPost(ViewPostRequest) returns (ViewPostResponse);
+    rpc LikePost(LikePostRequest) returns (LikePostResponse);
+    rpc CommentPost(CommentPostRequest) returns (CommentPostResponse);
+    rpc GetComments(GetCommentsRequest) returns (GetCommentsResponse);
 }
