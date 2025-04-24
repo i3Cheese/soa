@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -210,4 +212,130 @@ func (s *PostServiceServer) GetPosts(ctx context.Context, req *posts.GetPostsReq
 	var totalCount int32 = int32(len(postsList))
 
 	return &posts.GetPostsResponse{Posts: postsList, TotalCount: totalCount}, nil
+}
+
+func (s *PostServiceServer) ViewPost(ctx context.Context, req *posts.ViewPostRequest) (*posts.ViewPostResponse, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("failed to get metadata from context")
+	}
+	actorUserId := md.Get("actor_user_id")[0]
+
+	// Fetch post (reuse GetPostById logic)
+	query := `SELECT post_id, title, description, creator_id, created_at, updated_at, is_private FROM posts WHERE post_id = $1`
+	row := s.App.DB.QueryRow(ctx, query, req.PostId)
+	var post posts.Post
+	var createdAt, updatedAt time.Time
+	err := row.Scan(&post.PostId, &post.Title, &post.Description, &post.CreatorId, &createdAt, &updatedAt, &post.IsPrivate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch post: %v", err)
+	}
+	post.CreatedAt = timestamppb.New(createdAt)
+	post.UpdatedAt = timestamppb.New(updatedAt)
+
+	// Send Kafka event
+	event := map[string]interface{}{
+		"user_id":   actorUserId,
+		"post_id":   req.PostId,
+		"viewed_at": time.Now().UTC(),
+	}
+	payload, _ := json.Marshal(event)
+	_ = s.App.KafkaWriter.WriteMessages(ctx, kafka.Message{
+		Topic: "post_views",
+		Value: payload,
+	})
+
+	return &posts.ViewPostResponse{Post: &post}, nil
+}
+
+func (s *PostServiceServer) LikePost(ctx context.Context, req *posts.LikePostRequest) (*posts.LikePostResponse, error) {
+	// Save like/unlike in DB
+	var err error
+	if req.Like {
+		_, err = s.App.DB.Exec(ctx, `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, req.PostId, req.UserId)
+	} else {
+		_, err = s.App.DB.Exec(ctx, `DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, req.PostId, req.UserId)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to update like: %v", err)
+	}
+
+	// Send Kafka event
+	event := map[string]interface{}{
+		"user_id":    req.UserId,
+		"post_id":    req.PostId,
+		"like":       req.Like,
+		"event_time": time.Now().UTC(),
+	}
+	payload, _ := json.Marshal(event)
+	_ = s.App.KafkaWriter.WriteMessages(ctx, kafka.Message{
+		Topic: "post_likes",
+		Value: payload,
+	})
+
+	return &posts.LikePostResponse{Success: true}, nil
+}
+
+func (s *PostServiceServer) CommentPost(ctx context.Context, req *posts.CommentPostRequest) (*posts.CommentPostResponse, error) {
+	// Save comment in DB
+	query := `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, $3)`
+	_, err := s.App.DB.Exec(ctx, query, req.PostId, req.UserId, req.Content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save comment: %v", err)
+	}
+
+	// Send Kafka event
+	event := map[string]interface{}{
+		"user_id":      req.UserId,
+		"post_id":      req.PostId,
+		"content":      req.Content,
+		"commented_at": time.Now().UTC(),
+	}
+	payload, _ := json.Marshal(event)
+	_ = s.App.KafkaWriter.WriteMessages(ctx, kafka.Message{
+		Topic: "post_comments",
+		Value: payload,
+	})
+
+	return &posts.CommentPostResponse{Success: true}, nil
+}
+
+func (s *PostServiceServer) GetComments(ctx context.Context, req *posts.GetCommentsRequest) (*posts.GetCommentsResponse, error) {
+	// Pagination: fetch comments after StartFrom (if provided)
+	query := `SELECT comment_id, post_id, user_id, content, created_at FROM post_comments WHERE post_id = $1`
+	args := []interface{}{req.PostId}
+	if req.StartFrom != nil {
+		query += " AND created_at > $2"
+		args = append(args, req.StartFrom.AsTime())
+	}
+	query += " ORDER BY created_at ASC LIMIT 50"
+	rows, err := s.App.DB.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch comments: %v", err)
+	}
+	defer rows.Close()
+
+	var comments []*posts.Comment
+	for rows.Next() {
+		var c posts.Comment
+		var createdAt time.Time
+		err := rows.Scan(&c.CommentId, &c.PostId, &c.UserId, &c.Content, &createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan comment: %v", err)
+		}
+		c.CreatedAt = timestamppb.New(createdAt)
+		comments = append(comments, &c)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating comments: %v", err)
+	}
+
+	// Get total count
+	var totalCount int32
+	err = s.App.DB.QueryRow(ctx, `SELECT COUNT(*) FROM post_comments WHERE post_id = $1`, req.PostId).Scan(&totalCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count comments: %v", err)
+	}
+
+	return &posts.GetCommentsResponse{Comments: comments, TotalCount: totalCount}, nil
 }

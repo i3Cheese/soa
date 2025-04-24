@@ -11,11 +11,13 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/segmentio/kafka-go"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type App struct {
-	DB *pgx.Conn
+	DB          *pgx.Conn
+	KafkaWriter *kafka.Writer
 }
 
 type RegisterRequest struct {
@@ -56,15 +58,31 @@ func (app *App) Register(c *gin.Context) {
 		return
 	}
 	now := time.Now()
-	_, err = app.DB.Exec(
+	var userID string
+	err = app.DB.QueryRow(
 		context.Background(),
-		"INSERT INTO users (login, email, hashed_password, name, surname, date_of_birth, phone_number, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+		"INSERT INTO users (login, email, hashed_password, name, surname, date_of_birth, phone_number, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING user_id",
 		user.Login, user.Email, string(hashedPassword), user.Name, user.Surname, user.DateOfBirth, user.PhoneNumber, now, now,
-	)
+	).Scan(&userID)
 	if err != nil {
 		fmt.Printf("Failed to register user: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register user"})
 		return
+	}
+
+	// Send registration event to Kafka
+	if app.KafkaWriter != nil {
+		event := fmt.Sprintf(`{"user_id":"%s","registered_at":"%s"}`, userID, now.Format(time.RFC3339))
+		err := app.KafkaWriter.WriteMessages(context.Background(),
+			kafka.Message{
+				Key:   []byte(userID),
+				Value: []byte(event),
+			},
+		)
+		if err != nil {
+			fmt.Printf("Failed to send registration event to Kafka: %v\n", err)
+			// Do not fail registration on Kafka error
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "User registered successfully"})
@@ -223,7 +241,22 @@ func main() {
 	}
 	defer conn.Close(context.Background())
 
-	app := &App{DB: conn}
+	// Kafka writer setup
+	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
+	if kafkaBrokers == "" {
+		kafkaBrokers = "kafka:9092"
+	}
+	kafkaTopic := os.Getenv("KAFKA_REGISTRATION_TOPIC")
+	if kafkaTopic == "" {
+		kafkaTopic = "user_registrations"
+	}
+	kafkaWriter := &kafka.Writer{
+		Addr:     kafka.TCP(kafkaBrokers),
+		Topic:    kafkaTopic,
+		Balancer: &kafka.LeastBytes{},
+	}
+
+	app := &App{DB: conn, KafkaWriter: kafkaWriter}
 
 	router := gin.Default()
 	router.POST("/register", app.Register)

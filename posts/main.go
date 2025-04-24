@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/segmentio/kafka-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"msg.i3cheese.ru/proto/posts"
 )
 
 type App struct {
-	DB *pgx.Conn
+	DB          *pgx.Conn
+	KafkaWriter *kafka.Writer
 }
 
 func connectWithRetries(ctx context.Context, dsn string, maxRetries int) (*pgx.Conn, error) {
@@ -39,7 +41,16 @@ func main() {
 	}
 	defer conn.Close(context.Background())
 
-	app := &App{DB: conn}
+	kafkaBrokers := os.Getenv("KAFKA_BROKERS")
+	if kafkaBrokers == "" {
+		kafkaBrokers = "kafka:9092"
+	}
+	kafkaWriter := &kafka.Writer{
+		Addr:     kafka.TCP(kafkaBrokers),
+		Balancer: &kafka.LeastBytes{},
+	}
+
+	app := &App{DB: conn, KafkaWriter: kafkaWriter}
 
 	grpcServer := grpc.NewServer()
 	postService := &PostServiceServer{App: app}
